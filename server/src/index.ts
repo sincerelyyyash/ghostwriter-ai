@@ -1,12 +1,11 @@
-import { app } from "./app";
-import dotenv from "dotenv";
+import { startServer } from "./app";
+import { webSocketServer } from "./websocket";
 
+try {
+  startServer();
+  webSocketServer();
+} catch (error) {
+  console.error("Error starting servers:", error);
+  process.exit(1);
+}
 
-dotenv.config({
-  path: './env'
-})
-
-
-app.listen(process.env.PORT || 8000, () => {
-  console.log(`Server is running at port: ${process.env.PORT}`);
-})
