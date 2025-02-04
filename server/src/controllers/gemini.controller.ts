@@ -28,24 +28,36 @@ export const chatbot = async (userId: string, userMessage: string): Promise<stri
 
   console.log(`{ "type": "plan", "plan": "${aiResponse}" }`);
 
-  const functionMatch = aiResponse.match(/function:\s*([\w]+)/);
-  const inputMatch = aiResponse.match(/input:\s*"(.*?)"/);
+  const functionExecutionMatch = aiResponse.match(/Function Execution:\s*(.*?)(?=\n|$)/);
 
-  if (functionMatch && tools[functionMatch[1]]) {
-    const functionName = functionMatch[1];
-    const functionInput = inputMatch ? inputMatch[1] : "";
+  if (functionExecutionMatch && functionExecutionMatch[1].toLowerCase().includes("function needed")) {
+    const functionMatch = aiResponse.match(/function:\s*([\w]+)/);
+    const inputMatch = aiResponse.match(/input:\s*"(.*?)"/);
 
-    console.log(`{ "type": "action", "function": "${functionName}", "input": "${functionInput}" }`);
+    if (functionMatch && tools[functionMatch[1]]) {
+      const functionName = functionMatch[1];
+      const functionInput = inputMatch ? inputMatch[1] : "";
 
-    try {
-      const observation = await tools[functionName](userId, functionInput);
-      console.log(`{ "type": "observation", "observation": "${JSON.stringify(observation)}" }`);
-      return `{ "type": "output", "output": "? ${functionName} executed successfully!" }`;
-    } catch (error: any) {
-      return `{ "type": "output", "output": "? Error executing ${functionName}: ${error.message}" }`;
+      console.log(`{ "type": "action", "function": "${functionName}", "input": "${functionInput}" }`);
+
+      try {
+        const observation = await tools[functionName](userId, functionInput);
+
+        console.log(`{ "type": "observation", "observation": "${JSON.stringify(observation)}" }`);
+
+        const responsePrompt = `${aiResponse}\nObservation: ${JSON.stringify(observation)}\nGenerate a response based on the above.`;
+        const finalAIResponse = await model.generateContent(responsePrompt);
+        return finalAIResponse.response.text();
+      } catch (error: any) {
+        const errorPrompt = `${aiResponse}\nError: ${error.message}\nGenerate a response based on the above.`;
+        const finalAIResponse = await model.generateContent(errorPrompt);
+        return finalAIResponse.response.text();
+      }
+    } else {
+      return aiResponse;
     }
   } else {
-    return `{ "type": "output", "output": "?? I didn't understand that request." }`;
+    return aiResponse;
   }
 };
 

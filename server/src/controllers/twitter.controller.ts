@@ -47,6 +47,7 @@ export const searchTwitterPost = async (userId: string, query: string) => {
       },
     }
   })
+  console.log("post abcd" + posts)
   return posts;
 }
 
