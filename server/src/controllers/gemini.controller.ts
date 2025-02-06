@@ -1,10 +1,44 @@
+import { GoogleGenerativeAIFetchError } from "@google/generative-ai";
 import { SYSTEM_PROMPT } from "../utils/systemPrompt";
-import { createLinkedinPost, deleteLinkedinPost, getAllLinkedinPosts, searchLinkedinPost, updateLinkedinPost } from "./linkedin.controller";
-import { createTwitterPost, deleteTwitterPost, getAllTwitterPosts, searchTwitterPost, updateTwitterPost } from "./twitter.controller";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  createLinkedinPost,
+  deleteLinkedinPost,
+  getAllLinkedinPosts,
+  searchLinkedinPost,
+  updateLinkedinPost
+} from "./linkedin.controller";
+import {
+  createTwitterPost,
+  deleteTwitterPost,
+  getAllTwitterPosts,
+  searchTwitterPost,
+  updateTwitterPost
+} from "./twitter.controller";
+import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+interface Query {
+  type: string;
+  user: {
+    userId: string;
+    userMessage: string;
+  };
+}
+
+interface Action {
+  type: string;
+  function?: string;
+  input?: any;
+  output?: string;
+}
+
+const genAI: GoogleGenerativeAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+
+const model: GenerativeModel = genAI.getGenerativeModel({
+  model: "gemini-1.5-pro",
+  generationConfig: {
+    responseMimeType: "application/json",
+  },
+});
 
 const tools: Record<string, Function> = {
   createTwitterPost,
@@ -19,45 +53,78 @@ const tools: Record<string, Function> = {
   getAllLinkedinPosts,
 };
 
-export const chatbot = async (userId: string, userMessage: string): Promise<string> => {
-  console.log(`{ "type": "user", "user": "${userMessage}" }`);
+export const chatbot = async (userId: string, userMessage: string): Promise<void> => {
+  const messages: { role: string; content: string }[] = [
+    { role: 'system', content: SYSTEM_PROMPT("Full stack Developer") },
+  ];
 
-  const prompt = `${SYSTEM_PROMPT("Full Stack Developer")}\nUser Request: "${userMessage}"`;
-  const result = await model.generateContent(prompt);
-  const aiResponse = result.response.text();
+  let iterationCount = 0;
+  const maxIterations = 10;
 
-  console.log(`{ "type": "plan", "plan": "${aiResponse}" }`);
+  while (iterationCount < maxIterations) {
+    iterationCount++;
 
-  const functionExecutionMatch = aiResponse.match(/Function Execution:\s*(.*?)(?=\n|$)/);
+    const query: Query = {
+      type: "user",
+      user: { userId, userMessage },
+    };
 
-  if (functionExecutionMatch && functionExecutionMatch[1].toLowerCase().includes("function needed")) {
-    const functionMatch = aiResponse.match(/function:\s*([\w]+)/);
-    const inputMatch = aiResponse.match(/input:\s*"(.*?)"/);
+    messages.push({ role: 'user', content: JSON.stringify(query) });
 
-    if (functionMatch && tools[functionMatch[1]]) {
-      const functionName = functionMatch[1];
-      const functionInput = inputMatch ? inputMatch[1] : "";
+    try {
+      const contentArray: string[] = messages.map(msg => msg.content);
 
-      console.log(`{ "type": "action", "function": "${functionName}", "input": "${functionInput}" }`);
+      const result = await model.generateContent(contentArray);
+      console.log(result);
 
-      try {
-        const observation = await tools[functionName](userId, functionInput);
+      const responseText = await result.response.text();
+      // console.log("Raw response text:", responseText); // Log the raw response text for debugging
 
-        console.log(`{ "type": "observation", "observation": "${JSON.stringify(observation)}" }`);
+      const jsonObjects = responseText
+        .split('\n') // Split by newlines
+        .map((line) => line.trim()) // Remove extra spaces
+        .filter((line) => line.length > 0); // Remove empty lines
 
-        const responsePrompt = `${aiResponse}\nObservation: ${JSON.stringify(observation)}\nGenerate a response based on the above.`;
-        const finalAIResponse = await model.generateContent(responsePrompt);
-        return finalAIResponse.response.text();
-      } catch (error: any) {
-        const errorPrompt = `${aiResponse}\nError: ${error.message}\nGenerate a response based on the above.`;
-        const finalAIResponse = await model.generateContent(errorPrompt);
-        return finalAIResponse.response.text();
+      for (const jsonString of jsonObjects) {
+        try {
+          const action: Action = JSON.parse(jsonString);
+          console.log("Parsed action:", action);
+
+          messages.push({ role: 'assistant', content: jsonString });
+
+          if (action.type === 'output') {
+            console.log(action.output);
+          } else if (action.type === 'action' && action.function) {
+            const fn = tools[action.function];
+            if (!fn) throw new Error('Invalid function call');
+
+            console.log("Input:", Object.values(action.input).join(", "));
+            const fnInput = Object.values(action.input).join(", ")
+            const observation = await fn(...Object.values(action.input));
+            const observationMessages = {
+              type: 'observation',
+              observation: observation,
+            };
+            messages.push({ role: 'developer', content: JSON.stringify(observationMessages) });
+          }
+        } catch (jsonError) {
+          console.error("Invalid JSON object:", jsonString);
+          console.error("JSON parsing error:", jsonError);
+        }
       }
-    } else {
-      return aiResponse;
+    } catch (error) {
+      console.error("Error processing message:", error);
+
+      if (error instanceof GoogleGenerativeAIFetchError && error.status === 429) {
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      } else {
+        console.error("Unhandled error:", error);
+        break;
+      }
     }
-  } else {
-    return aiResponse;
+  }
+
+  if (iterationCount >= maxIterations) {
+    console.error("Maximum iterations reached. Exiting chatbot.");
   }
 };
-
