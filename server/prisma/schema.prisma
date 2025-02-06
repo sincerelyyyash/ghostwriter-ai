@@ -28,7 +28,7 @@ model LinkedinPost {
     userId          Int
     user            User    @relation(fields: [userId], references: [id])
     postContent     String
-    postTime        DateTime?
+    postTime        String?
     createdAt       DateTime    @default(now())
     updatedAt       DateTime    @updatedAt
 }
@@ -38,7 +38,7 @@ model TwitterPost {
     userId          Int
     user            User    @relation(fields: [userId], references: [id])
     postContent     String
-    postTime        DateTime?
+    postTime        String?
     createdAt       DateTime    @default(now())
     updatedAt       DateTime    @updatedAt
 }
