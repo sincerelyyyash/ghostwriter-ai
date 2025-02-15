@@ -1,4 +1,3 @@
-import { GoogleGenerativeAIFetchError } from "@google/generative-ai";
 import { SYSTEM_PROMPT } from "../utils/systemPrompt";
 import {
   createLinkedinPost,
