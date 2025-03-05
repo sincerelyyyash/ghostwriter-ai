@@ -1,4 +1,3 @@
-import { GoogleGenerativeAIFetchError } from "@google/generative-ai";
 import {
   createLinkedinPost,
   deleteLinkedinPost,
@@ -17,6 +16,7 @@ import { SequentialChain, LLMChain } from "langchain/chains";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { PromptTemplate } from "@langchain/core/prompts";
 import dotenv from "dotenv";
+import { SYSTEM_PROMPT } from "../utils/systemPrompt";
 
 dotenv.config();
 
@@ -41,9 +41,11 @@ const chatModel = new ChatGoogleGenerativeAI({
   temperature: 0.7,
 });
 
+const System_Prompt = SYSTEM_PROMPT("Full Stack Developer")
+
 const systemPrompt = new PromptTemplate({
-  template: `You are a helpful AI assistant for a {role}. The user has sent the following message: {userMessage}`,
-  inputVariables: ["role", "userMessage"],
+  template: `${System_Prompt}, The user has sent the following message: {userMessage}`,
+  inputVariables: ["userMessage"],
 });
 
 const tools: Record<string, Function> = {
