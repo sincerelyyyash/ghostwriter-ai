@@ -1,6 +1,6 @@
 # **📝 Ghostwriter-AI**  
 
-🚀 **Ghostwriter-AI** is an AI-powered **social media assistant** designed to help users create, manage, and interact with posts across **Twitter (X) and LinkedIn**. Using **Google Gemini AI**, it intelligently understands user queries, executes platform-specific actions, and provides real-time responses through WebSockets.  
+🚀 **Ghostwriter-AI** is an AI-powered **social media assistant** designed to help users create, manage, and interact with posts across **Twitter (X) and LinkedIn**. Using **Google Gemini AI with LangChain**, it intelligently understands user queries, executes platform-specific actions, and provides real-time responses through WebSockets.  
 
 ---
 
